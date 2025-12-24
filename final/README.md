@@ -1,29 +1,34 @@
-# LuxuryCars 
+# LuxuryCars - Frontend Application
 
-A small React + Vite demo showing a luxury car listing UI. The app includes an inventory, product view with image zoom, and a floating frontend-only chat widget. Tailwind CSS is used for styling.
+A modern, responsive React-based luxury car dealership platform with real-time inventory management, user authentication, test drive scheduling, and customer engagement features.
 
----
+## 📋 Project Overview
 
-**Contents**
-- Project overview
-- Prerequisites
-- Install & run
-- Tailwind setup (how this project is configured)
-- Project structure (important files)
-- How to change images / add local assets
-- Notes on the Chat widget
-- Troubleshooting
+LuxuryCars is a full-stack web application designed to provide a seamless experience for luxury car enthusiasts. The platform allows users to:
+- Browse and filter premium vehicle inventory
+- Schedule test drives
+- Manage user profiles
+- Add cars to favorites
+- Submit contact inquiries
+- Real-time chat support widget
 
----
+The frontend communicates with a Node.js/Express backend API to persist all user data, inventory, and bookings to a MySQL database.
 
-## Project overview
-This is a frontend demo app (no backend) built with:
-- React (JSX)
-- Vite (dev server + build)
-- Tailwind CSS for utility-first styling
-- lucide-react for icons
+## 🚀 Technologies Used
 
-It displays an inventory of cars, individual car product pages with a zoomable main image and thumbnails, and a floating chat widget (frontend-only mock replies).
+### Frontend Stack
+- **React 18** - UI library for building interactive components
+- **Tailwind CSS** - Utility-first CSS framework for responsive design
+- **Lucide React** - Icon library for modern, minimal icons
+- **Vite** - Lightning-fast build tool and dev server
+- **JavaScript ES6+** - Modern JavaScript with hooks and async/await
+- **HTML5** - Semantic markup
+
+### Development Tools
+- **npm** - Package manager
+- **ESLint** - Code quality linter
+- **PostCSS** - CSS processing
+- **Tailwind CLI** - CSS utility compilation
 
 ## Prerequisites
 - Node.js (>= 16 recommended)

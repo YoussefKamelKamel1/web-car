@@ -1,30 +1,66 @@
 const express = require('express');
+const crypto = require('crypto');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-// Configure CORS origins from environment (comma-separated list)
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+// Default allowlist includes common dev origins and the server origin so AdminJS assets
+// served from this server are allowed in-browser during development.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173,http://localhost:5000')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
 
+
+  const serverOrigin = `http://localhost:${PORT}`;
+if (!allowedOrigins.includes(serverOrigin)) {
+  allowedOrigins.push(serverOrigin);
+}
+console.log('CORS allowlist:', allowedOrigins);
+
 app.use(cors({
   origin: (origin, callback) => {
-    // allow non-browser clients (curl, Postman) with no origin
+    // Allow requests with no origin (e.g., server-to-server, curl)
     if (!origin) return callback(null, true);
+
+    // In development, be permissive to avoid blocking local tooling.
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[CORS] Development mode: allowing origin', origin);
+      return callback(null, true);
+    }
+
+    // Allow explicit origins from the configured allowlist
     if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+
+    // Allow common local loopback hostnames even if not enumerated
+    try {
+      const parsed = new URL(origin);
+      if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+        return callback(null, true);
+      }
+    } catch (e) {
+      // If the origin can't be parsed, fall through to block
+    }
+
+    console.warn('[CORS] Blocked origin:', origin);
     return callback(new Error('CORS policy: origin not allowed'), false);
   },
   credentials: true
 }));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Do NOT register global body parsers before AdminJS mounts its router.
+// Instead, mount parsers only for our API routes so AdminJS `/admin` paths
+// remain untouched by any body-parser-like middleware.
+// Parsers will be applied to `/api/*` routes below (just before the API routes).
+
+// Simple request logger
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.originalUrl}`);
+  next();
+});
 
 // MySQL Connection Pool
 const pool = mysql.createPool({
@@ -53,7 +89,6 @@ async function initDatabase() {
   try {
     const connection = await pool.getConnection();
     
-    // Create test_drives table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS test_drives (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -74,7 +109,6 @@ async function initDatabase() {
       )
     `);
 
-    // Create users table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -90,7 +124,6 @@ async function initDatabase() {
       )
     `);
 
-    // Create cars table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS cars (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -111,7 +144,6 @@ async function initDatabase() {
       )
     `);
 
-    // Create car_images table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS car_images (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -125,7 +157,6 @@ async function initDatabase() {
       )
     `);
 
-    // Create favorites table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS favorites (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -137,7 +168,6 @@ async function initDatabase() {
       )
     `);
 
-    // Create contact_messages table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS contact_messages (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -150,10 +180,8 @@ async function initDatabase() {
       )
     `);
 
-    // Insert sample cars if table is empty
     const [cars] = await connection.query('SELECT COUNT(*) as count FROM cars');
     if (cars[0].count === 0) {
-      // Insert cars with image URLs
       await connection.query(`
         INSERT INTO cars (id, name, price, year, mileage, fuel, transmission, rating, reviews, description, features, images) VALUES
         (1, 'Mercedes-Benz S-Class', 89999.00, 2023, '5,000 mi', 'Gasoline', 'Automatic', 4.8, 124, 
@@ -187,25 +215,19 @@ async function initDatabase() {
          'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&h=600&fit=crop,https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&h=600&fit=crop')
       `);
       
-      // Insert car images into car_images table
       const carImages = [
         { carId: 1, url: 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&h=600&fit=crop', isPrimary: true, order: 0 },
         { carId: 1, url: 'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&h=600&fit=crop', isPrimary: false, order: 1 },
         { carId: 1, url: 'https://images.unsplash.com/photo-1617531653520-bd788419a0a2?w=800&h=600&fit=crop', isPrimary: false, order: 2 },
         { carId: 1, url: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&h=600&fit=crop', isPrimary: false, order: 3 },
-        
         { carId: 2, url: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&h=600&fit=crop', isPrimary: true, order: 0 },
         { carId: 2, url: 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&h=600&fit=crop', isPrimary: false, order: 1 },
-        
         { carId: 3, url: 'https://images.unsplash.com/photo-1542362567-b07e54358753?w=800&h=600&fit=crop', isPrimary: true, order: 0 },
         { carId: 3, url: 'https://images.unsplash.com/photo-1523986371872-9d3ba2e2f642?w=800&h=600&fit=crop', isPrimary: false, order: 1 },
-        
         { carId: 4, url: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&h=600&fit=crop', isPrimary: true, order: 0 },
         { carId: 4, url: 'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&h=600&fit=crop', isPrimary: false, order: 1 },
-        
         { carId: 5, url: 'https://images.unsplash.com/photo-1614200187524-dc4b892acf16?w=800&h=600&fit=crop', isPrimary: true, order: 0 },
         { carId: 5, url: 'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&h=600&fit=crop', isPrimary: false, order: 1 },
-        
         { carId: 6, url: 'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&h=600&fit=crop', isPrimary: true, order: 0 },
         { carId: 6, url: 'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&h=600&fit=crop', isPrimary: false, order: 1 }
       ];
@@ -227,9 +249,11 @@ async function initDatabase() {
   }
 }
 
+// Apply body parsers for API routes only (keeps AdminJS routes parser-free)
+app.use('/api', express.json(), express.urlencoded({ extended: true }));
+
 // ===================== API ROUTES =====================
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -240,7 +264,6 @@ app.get('/api/health', (req, res) => {
 
 // ===================== TEST DRIVES ROUTES =====================
 
-// POST - Schedule a test drive
 app.post('/api/test-drives', async (req, res) => {
   try {
     const { name, email, phone, date, time, carId, carName, message } = req.body;
@@ -261,26 +284,14 @@ app.post('/api/test-drives', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Test drive scheduled successfully',
-      data: {
-        id: result.insertId,
-        name,
-        email,
-        phone,
-        date,
-        time,
-        carName
-      }
+      data: { id: result.insertId, name, email, phone, date, time, carName }
     });
   } catch (error) {
     console.error('Error scheduling test drive:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to schedule test drive' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to schedule test drive' });
   }
 });
 
-// GET - Get all test drives
 app.get('/api/test-drives', async (req, res) => {
   try {
     const { status, date, email } = req.query;
@@ -301,116 +312,71 @@ app.get('/api/test-drives', async (req, res) => {
     }
 
     query += ' ORDER BY created_at DESC';
-
     const [results] = await pool.query(query, params);
 
-    res.json({
-      success: true,
-      count: results.length,
-      data: results
-    });
+    res.json({ success: true, count: results.length, data: results });
   } catch (error) {
     console.error('Error fetching test drives:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch test drives' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch test drives' });
   }
 });
 
-// GET - Get test drive by ID
 app.get('/api/test-drives/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const [results] = await pool.query('SELECT * FROM test_drives WHERE id = ?', [id]);
+    const [results] = await pool.query('SELECT * FROM test_drives WHERE id = ?', [req.params.id]);
 
     if (results.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Test drive not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Test drive not found' });
     }
 
-    res.json({
-      success: true,
-      data: results[0]
-    });
+    res.json({ success: true, data: results[0] });
   } catch (error) {
     console.error('Error fetching test drive:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch test drive' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch test drive' });
   }
 });
 
-// PUT - Update test drive status
 app.put('/api/test-drives/:id', async (req, res) => {
   try {
-    const { id } = req.params;
     const { status } = req.body;
 
     if (!['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid status value' 
-      });
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
     }
 
     const [result] = await pool.query(
       'UPDATE test_drives SET status = ? WHERE id = ?',
-      [status, id]
+      [status, req.params.id]
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Test drive not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Test drive not found' });
     }
 
-    res.json({
-      success: true,
-      message: 'Test drive updated successfully'
-    });
+    res.json({ success: true, message: 'Test drive updated successfully' });
   } catch (error) {
     console.error('Error updating test drive:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to update test drive' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to update test drive' });
   }
 });
 
-// DELETE - Delete test drive
 app.delete('/api/test-drives/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const [result] = await pool.query('DELETE FROM test_drives WHERE id = ?', [id]);
+    const [result] = await pool.query('DELETE FROM test_drives WHERE id = ?', [req.params.id]);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Test drive not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Test drive not found' });
     }
 
-    res.json({
-      success: true,
-      message: 'Test drive deleted successfully'
-    });
+    res.json({ success: true, message: 'Test drive deleted successfully' });
   } catch (error) {
     console.error('Error deleting test drive:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to delete test drive' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to delete test drive' });
   }
 });
 
 // ===================== CARS ROUTES =====================
 
-// GET - Get all cars with images
 app.get('/api/cars', async (req, res) => {
   try {
     const { make, year, minPrice, maxPrice, fuel } = req.query;
@@ -439,183 +405,118 @@ app.get('/api/cars', async (req, res) => {
     }
 
     query += ' ORDER BY created_at DESC';
-
     const [results] = await pool.query(query, params);
     
-    // Parse images string into array for each car
     const carsWithImages = results.map(car => ({
       ...car,
       images: car.images ? car.images.split(',') : [],
       features: car.features ? car.features.split(',') : []
     }));
 
-    res.json({
-      success: true,
-      count: carsWithImages.length,
-      data: carsWithImages
-    });
+    res.json({ success: true, count: carsWithImages.length, data: carsWithImages });
   } catch (error) {
     console.error('Error fetching cars:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch cars' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch cars' });
   }
 });
 
-// GET - Get car by ID with all images
 app.get('/api/cars/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const [results] = await pool.query('SELECT * FROM cars WHERE id = ?', [id]);
+    const [results] = await pool.query('SELECT * FROM cars WHERE id = ?', [req.params.id]);
 
     if (results.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Car not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Car not found' });
     }
 
     const car = results[0];
-    
-    // Get all images for this car
     const [images] = await pool.query(
       'SELECT image_url, is_primary, display_order FROM car_images WHERE car_id = ? ORDER BY display_order',
-      [id]
+      [req.params.id]
     );
 
-    // Parse images and features
     car.images = car.images ? car.images.split(',') : images.map(img => img.image_url);
     car.features = car.features ? car.features.split(',') : [];
     car.imageDetails = images;
 
-    res.json({
-      success: true,
-      data: car
-    });
+    res.json({ success: true, data: car });
   } catch (error) {
     console.error('Error fetching car:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch car' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch car' });
   }
 });
 
 // ===================== FAVORITES ROUTES =====================
 
-// POST - Add to favorites
 app.post('/api/favorites', async (req, res) => {
   try {
     const { userEmail, carId } = req.body;
 
     if (!userEmail || !carId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User email and car ID are required' 
-      });
+      return res.status(400).json({ success: false, message: 'User email and car ID are required' });
     }
 
-    await pool.query(
-      'INSERT INTO favorites (user_email, car_id) VALUES (?, ?)',
-      [userEmail, carId]
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'Car added to favorites'
-    });
+    await pool.query('INSERT INTO favorites (user_email, car_id) VALUES (?, ?)', [userEmail, carId]);
+    res.status(201).json({ success: true, message: 'Car added to favorites' });
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Car already in favorites' 
-      });
+      return res.status(400).json({ success: false, message: 'Car already in favorites' });
     }
     console.error('Error adding to favorites:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to add to favorites' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to add to favorites' });
   }
 });
 
-// GET - Get user favorites
 app.get('/api/favorites/:email', async (req, res) => {
   try {
-    const { email } = req.params;
     const [results] = await pool.query(
       `SELECT c.*, f.created_at as favorited_at 
        FROM favorites f 
        JOIN cars c ON f.car_id = c.id 
        WHERE f.user_email = ? 
        ORDER BY f.created_at DESC`,
-      [email]
+      [req.params.email]
     );
 
-    // Parse images for each car
     const favoritesWithImages = results.map(car => ({
       ...car,
       images: car.images ? car.images.split(',') : [],
       features: car.features ? car.features.split(',') : []
     }));
 
-    res.json({
-      success: true,
-      count: favoritesWithImages.length,
-      data: favoritesWithImages
-    });
+    res.json({ success: true, count: favoritesWithImages.length, data: favoritesWithImages });
   } catch (error) {
     console.error('Error fetching favorites:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch favorites' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch favorites' });
   }
 });
 
-// DELETE - Remove from favorites
 app.delete('/api/favorites', async (req, res) => {
   try {
     const { userEmail, carId } = req.body;
-
     const [result] = await pool.query(
       'DELETE FROM favorites WHERE user_email = ? AND car_id = ?',
       [userEmail, carId]
     );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Favorite not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Favorite not found' });
     }
 
-    res.json({
-      success: true,
-      message: 'Car removed from favorites'
-    });
+    res.json({ success: true, message: 'Car removed from favorites' });
   } catch (error) {
     console.error('Error removing favorite:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to remove favorite' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to remove favorite' });
   }
 });
 
 // ===================== CONTACT ROUTES =====================
 
-// POST - Submit contact message
 app.post('/api/contact', async (req, res) => {
   try {
     const { name, email, message } = req.body;
 
     if (!name || !email || !message) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All fields are required' 
-      });
+      return res.status(400).json({ success: false, message: 'All fields are required' });
     }
 
     const [result] = await pool.query(
@@ -630,49 +531,33 @@ app.post('/api/contact', async (req, res) => {
     });
   } catch (error) {
     console.error('Error submitting contact message:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to send message' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to send message' });
   }
 });
 
-// GET - Get all contact messages
 app.get('/api/contact', async (req, res) => {
   try {
     const [results] = await pool.query(
       'SELECT * FROM contact_messages ORDER BY created_at DESC'
     );
-
-    res.json({
-      success: true,
-      count: results.length,
-      data: results
-    });
+    res.json({ success: true, count: results.length, data: results });
   } catch (error) {
     console.error('Error fetching contact messages:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch messages' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch messages' });
   }
 });
 
 // ===================== USERS ROUTES =====================
 
-// POST - Create/Update user profile
 app.post('/api/users', async (req, res) => {
   try {
     const { name, email, phone, location, bio } = req.body;
 
     if (!name || !email) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Name and email are required' 
-      });
+      return res.status(400).json({ success: false, message: 'Name and email are required' });
     }
 
-    const [result] = await pool.query(
+    await pool.query(
       `INSERT INTO users (name, email, phone, location, bio, join_date)
        VALUES (?, ?, ?, ?, ?, CURDATE())
        ON DUPLICATE KEY UPDATE 
@@ -690,42 +575,27 @@ app.post('/api/users', async (req, res) => {
     });
   } catch (error) {
     console.error('Error saving user:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to save user profile' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to save user profile' });
   }
 });
 
-// GET - Get user by email
 app.get('/api/users/:email', async (req, res) => {
   try {
-    const { email } = req.params;
-    const [results] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    const [results] = await pool.query('SELECT * FROM users WHERE email = ?', [req.params.email]);
 
     if (results.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User not found' 
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    res.json({
-      success: true,
-      data: results[0]
-    });
+    res.json({ success: true, data: results[0] });
   } catch (error) {
     console.error('Error fetching user:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch user' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch user' });
   }
 });
 
 // ===================== STATISTICS ROUTES =====================
 
-// GET - Get dashboard statistics
 app.get('/api/statistics', async (req, res) => {
   try {
     const [testDrivesCount] = await pool.query(
@@ -750,34 +620,232 @@ app.get('/api/statistics', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching statistics:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to fetch statistics' 
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch statistics' });
   }
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
-});
+// ===================== ADMINJS INITIALIZATION =====================
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
-});
+async function initializeAdmin() {
+  try {
+    const AdminJSMod = await import('adminjs');
+    const AdminJSExpressMod = await import('@adminjs/express');
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 http://localhost:${PORT}`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+    const AdminJS = AdminJSMod.default || AdminJSMod;
+    const AdminJSExpress = AdminJSExpressMod.default || AdminJSExpressMod;
+
+    let sequelizeForAdmin = null;
+    try {
+      const SequelizeMod = await import('sequelize');
+      const Sequelize = SequelizeMod.Sequelize || SequelizeMod.default || SequelizeMod;
+      
+      sequelizeForAdmin = new Sequelize(
+        process.env.DB_NAME || 'luxury_cars_db',
+        process.env.DB_USER || 'root',
+        process.env.DB_PASSWORD || '1234',
+        {
+          host: process.env.DB_HOST || 'localhost',
+          dialect: 'mysql',
+          logging: (msg, timing) => {
+            console.log('[Sequelize] ' + msg);
+          },
+          pool: { max: 5, min: 0, idle: 10000 }
+        }
+      );
+
+      await sequelizeForAdmin.authenticate();
+      console.log('✅ Sequelize (for AdminJS) connected');
+
+      // Define Sequelize models matching the existing MySQL tables
+      const { DataTypes } = await import('sequelize');
+
+      const Car = sequelizeForAdmin.define('Car', {
+        id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+        name: { type: DataTypes.STRING(255), allowNull: false },
+        price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+        year: { type: DataTypes.INTEGER, allowNull: false },
+        mileage: { type: DataTypes.STRING(50) },
+        fuel: { type: DataTypes.STRING(50) },
+        transmission: { type: DataTypes.STRING(50) },
+        rating: { type: DataTypes.DECIMAL(2, 1), defaultValue: 0.0 },
+        reviews: { type: DataTypes.INTEGER, defaultValue: 0 },
+        description: { type: DataTypes.TEXT },
+        features: { type: DataTypes.TEXT },
+        images: { type: DataTypes.TEXT },
+        createdAt: { type: DataTypes.DATE, field: 'created_at', allowNull: false },
+      }, { tableName: 'cars', timestamps: true, freezeTableName: true, underscored: true });
+
+      const User = sequelizeForAdmin.define('User', {
+        id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+        name: { type: DataTypes.STRING(255), allowNull: false },
+        email: { type: DataTypes.STRING(255), allowNull: false, unique: true },
+        password: { type: DataTypes.STRING(255) },
+        phone: { type: DataTypes.STRING(50) },
+        location: { type: DataTypes.STRING(255) },
+        join_date: { type: DataTypes.DATE, field: 'join_date' },
+        bio: { type: DataTypes.TEXT },
+        createdAt: { type: DataTypes.DATE, field: 'created_at', allowNull: false },
+      }, { tableName: 'users', timestamps: true, freezeTableName: true, underscored: true });
+
+      const TestDrive = sequelizeForAdmin.define('TestDrive', {
+        id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+        name: { type: DataTypes.STRING(255), allowNull: false },
+        email: { type: DataTypes.STRING(255), allowNull: false },
+        phone: { type: DataTypes.STRING(50), allowNull: false },
+        date: { type: DataTypes.DATE, allowNull: false },
+        time: { type: DataTypes.STRING(50), allowNull: false },
+        car_id: { type: DataTypes.INTEGER, field: 'car_id' },
+        car_name: { type: DataTypes.STRING(255), allowNull: false, field: 'car_name' },
+        message: { type: DataTypes.TEXT },
+        status: { type: DataTypes.ENUM('pending', 'confirmed', 'completed', 'cancelled'), defaultValue: 'pending' },
+        createdAt: { type: DataTypes.DATE, field: 'created_at', allowNull: false },
+      }, { tableName: 'test_drives', timestamps: true, freezeTableName: true, underscored: true });
+
+      const Favorite = sequelizeForAdmin.define('Favorite', {
+        id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+        user_email: { type: DataTypes.STRING(255), allowNull: false, field: 'user_email' },
+        car_id: { type: DataTypes.INTEGER, allowNull: false, field: 'car_id' },
+        createdAt: { type: DataTypes.DATE, field: 'created_at', allowNull: false },
+      }, { tableName: 'favorites', timestamps: true, freezeTableName: true, underscored: true });
+
+      const ContactMessage = sequelizeForAdmin.define('ContactMessage', {
+        id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+        name: { type: DataTypes.STRING(255), allowNull: false },
+        email: { type: DataTypes.STRING(255), allowNull: false },
+        message: { type: DataTypes.TEXT, allowNull: false },
+        status: { type: DataTypes.ENUM('new', 'read', 'responded'), defaultValue: 'new' },
+        createdAt: { type: DataTypes.DATE, field: 'created_at', allowNull: false },
+      }, { tableName: 'contact_messages', timestamps: true, freezeTableName: true, underscored: true });
+
+      const CarImage = sequelizeForAdmin.define('CarImage', {
+        id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+        car_id: { type: DataTypes.INTEGER, allowNull: false, field: 'car_id' },
+        image_url: { type: DataTypes.STRING(500), allowNull: false, field: 'image_url' },
+        is_primary: { type: DataTypes.BOOLEAN, defaultValue: false, field: 'is_primary' },
+        display_order: { type: DataTypes.INTEGER, defaultValue: 0, field: 'display_order' },
+        createdAt: { type: DataTypes.DATE, field: 'created_at', allowNull: false },
+      }, { tableName: 'car_images', timestamps: true, freezeTableName: true, underscored: true });
+
+      try {
+        const AdminJSSequelizeMod = await import('@adminjs/sequelize');
+        const AdminJSSequelize = AdminJSSequelizeMod.default || AdminJSSequelizeMod;
+        AdminJS.registerAdapter(AdminJSSequelize);
+      } catch (adapterErr) {
+        console.warn('⚠️ AdminJS Sequelize adapter not available');
+      }
+    } catch (seqErr) {
+      console.warn('⚠️ Sequelize not available for AdminJS');
+      sequelizeForAdmin = null;
+    }
+
+    const adminJs = new AdminJS({
+      databases: sequelizeForAdmin ? [sequelizeForAdmin] : [],
+      rootPath: '/admin'
+    });
+
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@aiu.edu';
+    const adminPassword = process.env.ADMIN_PASSWORD || '1234';
+    let cookiePassword = process.env.ADMIN_COOKIE_PASSWORD || process.env.ADMIN_COOKIE || 'change_this_secret';
+    // AdminJS/express-session requires a cookiePassword of sufficient length (>=32).
+    if (!cookiePassword || cookiePassword.length < 32) {
+      const generated = crypto.randomBytes(32).toString('hex');
+      console.warn('⚠️ ADMIN_COOKIE_PASSWORD is missing or too short. Generating a secure random cookie password for this run.');
+      cookiePassword = generated;
+    }
+
+    const adminRouter = AdminJSExpress.buildAuthenticatedRouter(
+      adminJs,
+      {
+        authenticate: async (email, password) => {
+          if (email === adminEmail && password === adminPassword) {
+            return { email };
+          }
+          return null;
+        },
+        cookieName: 'adminjs',
+        cookiePassword: cookiePassword
+      },
+      null,
+      {
+        resave: false,
+        saveUninitialized: true
+      }
+    );
+
+    app.use(adminJs.options.rootPath, adminRouter);
+    console.log('✅ AdminJS initialized at', adminJs.options.rootPath);
+    
+  } catch (err) {
+    console.error('❌ AdminJS initialization error:', err);
+    console.error('Full error details:', JSON.stringify(err, null, 2));
+    if (err.original) {
+      console.error('Original DB error:', err.original);
+    }
+    console.error('Error stack:', err.stack);
+    console.warn('⚠️ AdminJS not initialized:', err.message);
+  }
+}
+
+// Initialize AdminJS before error handlers
+initializeAdmin().then(() => {
+  // Detailed error handler for AdminJS routes
+  app.use('/admin', (err, req, res, next) => {
+    console.error('❌ AdminJS Error:', err.message);
+    if (err.original) {
+      console.error('Database error:', err.original.message);
+    }
+    console.error('Full error:', err);
+    next(err);
+  });
+
+  // Error handling middleware (must come after all routes)
+  app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Something went wrong!',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  });
+
+  // 404 handler (must be last)
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      message: 'Route not found'
+    }); 
+  });
+
+  // Start server
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📍 http://localhost:${PORT}`);
+    console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+    console.log(`🔐 Admin panel: http://localhost:${PORT}/admin`);
+  });
+}).catch(err => {
+  console.error('Failed to initialize admin:', err);
+  
+  // Start server anyway without AdminJS
+  app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Something went wrong!',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  });
+
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      message: 'Route not found'
+    });
+  });
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📍 http://localhost:${PORT}`);
+    console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+  });
 });

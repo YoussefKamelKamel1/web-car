@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Mail, Phone, MapPin, Heart, Edit2, LogOut } from 'lucide-react';
 
-const Profile = ({ setCurrentPage, user, setUser }) => {
+const Profile = ({ setCurrentPage, user, setUser, onLogout }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
     name: 'John Doe',
@@ -218,7 +218,7 @@ const Profile = ({ setCurrentPage, user, setUser }) => {
               </div>
 
               <div className="border-t-2 border-black pt-8">
-                <button className="flex items-center text-red-600 font-medium hover:text-red-700 transition">
+                <button onClick={onLogout} className="flex items-center text-red-600 font-medium hover:text-red-700 transition">
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
                 </button>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
-const Login = ({ onLoginSuccess, onSkip }) => {
+const Login = ({ onLoginSuccess, onSkip, onShowSignUp }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -126,7 +126,7 @@ const Login = ({ onLoginSuccess, onSkip }) => {
 
         {/* Sign Up Link */}
         <p className="text-center text-gray-600 text-sm mt-6">
-          Don't have an account? <span className="text-black font-medium cursor-pointer hover:underline">Sign up</span>
+          Don't have an account? <span onClick={onShowSignUp} className="text-black font-medium cursor-pointer hover:underline">Sign up</span>
         </p>
 
         {/* Demo Credentials Hint */}

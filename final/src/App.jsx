@@ -10,10 +10,12 @@ import Footer from './components/Footer';
 import Profile from './components/Profile';
 import TestDriveSchedule from './components/TestDriveSchedule';
 import Login from './components/Login';
+import SignUp from './components/SignUp';
 
 const CarSellingWebsite = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
+  const [showSignUp, setShowSignUp] = useState(false);
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedCar, setSelectedCar] = useState(null);
   const [mainImage, setMainImage] = useState(0);
@@ -67,6 +69,12 @@ const CarSellingWebsite = () => {
     setIsLoggedIn(true);
   };
 
+  const handleLogout = () => {
+    setUser(null);
+    setIsLoggedIn(false);
+    setCurrentPage('home');
+  };
+
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMessage, setContactMessage] = useState('');
@@ -97,9 +105,25 @@ const CarSellingWebsite = () => {
     }
   };
 
+  // Show sign up page if showSignUp is true
+  if (showSignUp) {
+    return <SignUp 
+      onSignUpSuccess={(userData) => {
+        setUser(userData);
+        setShowSignUp(false);
+        setIsLoggedIn(true);
+      }}
+      onBackToLogin={() => setShowSignUp(false)}
+    />;
+  }
+
   // Show login page if not logged in
   if (!isLoggedIn) {
-    return <Login onLoginSuccess={handleLoginSuccess} onSkip={handleSkipLogin} />;
+    return <Login 
+      onLoginSuccess={handleLoginSuccess} 
+      onSkip={handleSkipLogin}
+      onShowSignUp={() => setShowSignUp(true)}
+    />
   }
 
   return (
@@ -181,7 +205,7 @@ const CarSellingWebsite = () => {
         </div>
       )}
 
-      {currentPage === 'profile' && <Profile setCurrentPage={setCurrentPage} user={user} setUser={setUser} />}
+      {currentPage === 'profile' && <Profile setCurrentPage={setCurrentPage} user={user} setUser={setUser} onLogout={handleLogout} />}
 
       <Footer />
       <ChatWidget />
