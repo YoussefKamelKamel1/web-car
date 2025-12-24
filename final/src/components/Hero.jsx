@@ -9,7 +9,7 @@ const Hero = ({ setCurrentPage }) => (
           <p className="text-xl text-gray-600 mb-8">Premium selection of luxury vehicles with unbeatable prices and exceptional service</p>
           <div className="flex flex-col sm:flex-row gap-4">
             <button onClick={() => setCurrentPage('inventory')} className="bg-black text-white px-8 py-4 text-lg font-medium hover:bg-gray-800 transition">Browse Inventory</button>
-            <button className="bg-white text-black border-2 border-black px-8 py-4 text-lg font-medium hover:bg-gray-50 transition">Schedule Test Drive</button>
+            <button onClick={() => setCurrentPage('testdrive')} className="bg-white text-black border-2 border-black px-8 py-4 text-lg font-medium hover:bg-gray-50 transition">Schedule Test Drive</button>
           </div>
         </div>
         <div className="relative">

@@ -1,0 +1,96 @@
+-- Create Database
+CREATE DATABASE IF NOT EXISTS luxury_cars_db;
+USE luxury_cars_db;
+
+-- Test Drives Table
+CREATE TABLE IF NOT EXISTS test_drives (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(50) NOT NULL,
+  date DATE NOT NULL,
+  time VARCHAR(50) NOT NULL,
+  car_id INT,
+  car_name VARCHAR(255) NOT NULL,
+  message TEXT,
+  status ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_email (email),
+  INDEX idx_date (date),
+  INDEX idx_status (status)
+);
+
+-- Users Table
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password VARCHAR(255),
+  phone VARCHAR(50),
+  location VARCHAR(255),
+  join_date DATE,
+  bio TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_email (email)
+);
+
+-- Cars Table
+CREATE TABLE IF NOT EXISTS cars (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  price DECIMAL(10, 2) NOT NULL,
+  year INT NOT NULL,
+  mileage VARCHAR(50),
+  fuel VARCHAR(50),
+  transmission VARCHAR(50),
+  rating DECIMAL(2, 1) DEFAULT 0.0,
+  reviews INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_price (price),
+  INDEX idx_year (year)
+);
+
+-- Insert Sample Cars Data
+INSERT INTO cars (id, name, price, year, mileage, fuel, transmission, rating, reviews) VALUES
+(1, 'Mercedes-Benz S-Class', 89999.00, 2023, '5,000 mi', 'Gasoline', 'Automatic', 4.8, 124),
+(2, 'BMW X5', 67500.00, 2023, '8,200 mi', 'Hybrid', 'Automatic', 4.6, 89),
+(3, 'Audi A8', 79900.00, 2023, '3,500 mi', 'Gasoline', 'Automatic', 4.7, 156),
+(4, 'Tesla Model S', 94990.00, 2024, '1,200 mi', 'Electric', 'Automatic', 4.9, 203),
+(5, 'Porsche Cayenne', 82400.00, 2023, '6,800 mi', 'Gasoline', 'Automatic', 4.7, 178),
+(6, 'Range Rover Sport', 91500.00, 2023, '4,300 mi', 'Hybrid', 'Automatic', 4.8, 145);
+
+-- Car Images Table (Optional - for multiple images per car)
+CREATE TABLE IF NOT EXISTS car_images (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  car_id INT NOT NULL,
+  image_url VARCHAR(500) NOT NULL,
+  is_primary BOOLEAN DEFAULT FALSE,
+  display_order INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE,
+  INDEX idx_car_id (car_id)
+);
+
+-- Favorites Table (Optional - for user favorites)
+CREATE TABLE IF NOT EXISTS favorites (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  car_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_favorite (user_id, car_id),
+  INDEX idx_user_id (user_id)
+);
+
+-- Contact Messages Table (Optional)
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  status ENUM('new', 'read', 'responded') DEFAULT 'new',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_status (status)
+);

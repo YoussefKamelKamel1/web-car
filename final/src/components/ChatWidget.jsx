@@ -20,10 +20,21 @@ const ChatWidget = () => {
     setMessages((s) => [...s, userMsg]);
     setInput('');
 
-    // Mock reply (frontend-only)
-    setTimeout(() => {
-      setMessages((s) => [...s, { id: Date.now() + 1, from: 'bot', text: "Thanks — this is a front-end demo reply." }]);
-    }, 700);
+    // Send message to backend as contact message (stores support requests)
+    fetch('http://localhost:5000/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Chat Widget', email: 'chat@local', message: text })
+    }).then(() => {
+      // Mock reply on success
+      setTimeout(() => {
+        setMessages((s) => [...s, { id: Date.now() + 1, from: 'bot', text: "Thanks — we've received your message and will respond shortly." }]);
+      }, 700);
+    }).catch(() => {
+      setTimeout(() => {
+        setMessages((s) => [...s, { id: Date.now() + 1, from: 'bot', text: "Unable to send message. Please try again later." }]);
+      }, 700);
+    });
   };
 
   const onKeyDown = (e) => {

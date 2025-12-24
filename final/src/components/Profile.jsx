@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, Mail, Phone, MapPin, Heart, Edit2, LogOut } from 'lucide-react';
 
-const Profile = ({ setCurrentPage }) => {
+const Profile = ({ setCurrentPage, user, setUser }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
     name: 'John Doe',
@@ -12,6 +12,31 @@ const Profile = ({ setCurrentPage }) => {
     bio: 'Luxury car enthusiast and collector'
   });
 
+  const [favoritesCount, setFavoritesCount] = useState(0);
+
+  // Load profile from backend when user is present
+  React.useEffect(() => {
+    if (!user || !user.email) return;
+    const email = encodeURIComponent(user.email);
+    fetch(`http://localhost:5000/api/users/${email}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.data) {
+          setProfile(prev => ({ ...prev, ...json.data }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {});
+
+    // fetch favorites count
+    fetch(`http://localhost:5000/api/favorites/${email}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && Array.isArray(json.data)) setFavoritesCount(json.data.length);
+      })
+      .catch(() => {});
+  }, [user]);
+
   const [editForm, setEditForm] = useState(profile);
 
   const handleEdit = () => {
@@ -20,8 +45,24 @@ const Profile = ({ setCurrentPage }) => {
   };
 
   const handleSave = () => {
-    setProfile(editForm);
-    setIsEditing(false);
+    // Save to backend
+    fetch('http://localhost:5000/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editForm.name, email: editForm.email, phone: editForm.phone, location: editForm.location, bio: editForm.bio })
+    })
+      .then(async res => {
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setProfile(editForm);
+          if (setUser) setUser({ name: editForm.name, email: editForm.email });
+        }
+        return json;
+      })
+      .catch(() => {
+        setProfile(editForm);
+      })
+      .finally(() => setIsEditing(false));
   };
 
   const handleCancel = () => {
@@ -173,7 +214,7 @@ const Profile = ({ setCurrentPage }) => {
 
               <div className="border-t-2 border-black pt-8">
                 <h3 className="text-xl font-bold mb-4">Saved Vehicles</h3>
-                <p className="text-gray-600 mb-4">You have 0 saved vehicles</p>
+                  <p className="text-gray-600 mb-4">You have {favoritesCount} saved vehicles</p>
               </div>
 
               <div className="border-t-2 border-black pt-8">

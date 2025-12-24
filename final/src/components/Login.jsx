@@ -10,15 +10,27 @@ const Login = ({ onLoginSuccess, onSkip }) => {
   const handleLogin = (e) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate login delay
-    setTimeout(() => {
-      onLoginSuccess({
-        name: email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1),
-        email: email
-      });
-      setIsLoading(false);
-    }, 800);
+    // Integrate with backend: create/update user profile
+    const name = email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1);
+    fetch('http://localhost:5000/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email })
+    })
+      .then(async res => {
+        const json = await res.json();
+        if (res.ok) {
+          onLoginSuccess({ name, email });
+        } else {
+          // fallback to local success
+          onLoginSuccess({ name, email });
+        }
+      })
+      .catch(() => {
+        // network fallback
+        onLoginSuccess({ name, email });
+      })
+      .finally(() => setIsLoading(false));
   };
 
   return (

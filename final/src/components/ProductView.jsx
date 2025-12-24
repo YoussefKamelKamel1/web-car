@@ -1,8 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronLeft, Star, Heart } from 'lucide-react';
 
-const ProductView = ({ selectedCar, setCurrentPage, mainImage, setMainImage, isZooming, setIsZooming, handleMouseMove, zoomPosition }) => {
+const ProductView = ({ selectedCar, setCurrentPage, user, mainImage, setMainImage, isZooming, setIsZooming, handleMouseMove, zoomPosition }) => {
   if (!selectedCar) return null;
+
+  const [favLoading, setFavLoading] = useState(false);
+  const [favStatus, setFavStatus] = useState(null);
+
+  const handleAddFavorite = async () => {
+    setFavLoading(true);
+    setFavStatus(null);
+    try {
+      const res = await fetch('http://localhost:5000/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail: user?.email || 'guest@example.com', carId: selectedCar.id })
+      });
+      const json = await res.json();
+      if (res.ok) setFavStatus({ type: 'success', message: json.message || 'Added to favorites' });
+      else setFavStatus({ type: 'error', message: json.message || 'Failed to add favorite' });
+    } catch (err) {
+      setFavStatus({ type: 'error', message: 'Network error' });
+    } finally {
+      setFavLoading(false);
+    }
+  };
 
   return (
     <div className="py-16 bg-white">
@@ -60,9 +82,14 @@ const ProductView = ({ selectedCar, setCurrentPage, mainImage, setMainImage, isZ
             </div>
 
             <div className="space-y-4">
-              <button className="w-full bg-black text-white py-4 text-lg font-medium hover:bg-gray-800 transition">Schedule Test Drive</button>
+              <button onClick={() => setCurrentPage('testdrive')} className="w-full bg-black text-white py-4 text-lg font-medium hover:bg-gray-800 transition">Schedule Test Drive</button>
               <button className="w-full bg-gray-100 border-2 border-black py-4 text-lg font-medium hover:bg-gray-200 transition">Contact Dealer</button>
-              <button className="w-full bg-gray-100 border-2 border-black py-4 text-lg font-medium hover:bg-gray-200 transition flex items-center justify-center"><Heart className="w-5 h-5 mr-2" />Add to Favorites</button>
+              <button onClick={handleAddFavorite} disabled={favLoading} className="w-full bg-gray-100 border-2 border-black py-4 text-lg font-medium hover:bg-gray-200 transition flex items-center justify-center">
+                <Heart className="w-5 h-5 mr-2" />{favLoading ? 'Adding…' : 'Add to Favorites'}
+              </button>
+              {favStatus && (
+                <div className={`mt-3 p-3 ${favStatus.type === 'success' ? 'bg-green-50 text-green-800 border border-green-500' : 'bg-red-50 text-red-800 border border-red-500'}`}>{favStatus.message}</div>
+              )}
             </div>
 
             <div className="mt-8 border-t-2 border-black pt-8">
